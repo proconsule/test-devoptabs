@@ -198,8 +198,8 @@ std::string CSSHFS::translate_path(const char *path){
 }
 
 
-int CSSHFS::connect(std::string_view host, std::uint16_t port,
-        std::string_view username, std::string_view password){
+int CSSHFS::connect(std::string host, std::uint16_t port,
+        std::string username, std::string password){
 	
 	if(port == 0)port=22;
 	
@@ -417,13 +417,11 @@ DIR_ITER *CSSHFS::sshfs_diropen(struct _reent *r, DIR_ITER *dirState, const char
 
     auto internal_path = priv->translate_path(path);
     
-	
 	printf("DIROPEN %s\n",internal_path.c_str());
 
     auto lk = std::scoped_lock(priv->session_mutex);
 
-	//priv_dir->handle  = libssh2_sftp_opendir(priv->sftp_session, internal_path.c_str());
-    priv_dir->handle = libssh2_sftp_open_ex(priv->sftp_session, internal_path.data(), internal_path.length(),
+	priv_dir->handle = libssh2_sftp_open_ex(priv->sftp_session, internal_path.data(), internal_path.length(),
         0, 0, LIBSSH2_SFTP_OPENDIR);
     if (!priv_dir->handle) {
         __errno_r(r) = ssh2_translate_error(libssh2_session_last_errno(priv->ssh_session), priv->sftp_session);
@@ -446,20 +444,17 @@ int CSSHFS::sshfs_dirnext(struct _reent *r, DIR_ITER *dirState, char *filename, 
 
     LIBSSH2_SFTP_ATTRIBUTES attrs;
     while (true) {
-        //auto rc = libssh2_sftp_readdir(priv_dir->handle, filename, NAME_MAX, &attrs);
-        auto rc = libssh2_sftp_readdir_ex(priv_dir->handle, filename, NAME_MAX,NULL,NULL,&attrs);
-		if (rc == 0) {
-            //__errno_r(r) = ENOENT;
-            //return -1;
-			r->_errno = ENOENT;
-			return -1;
+        auto rc = libssh2_sftp_readdir(priv_dir->handle, filename, NAME_MAX, &attrs);
+        if (rc == 0) {
+            __errno_r(r) = ENOENT;
+            return -1;
         } else if (rc < 0) {
             __errno_r(r) = ssh2_translate_error(rc, priv->sftp_session);
             return -1;
         }
 
-        //auto fname = std::string_view(filename);
-        //if (fname != "." && fname != "..")
+        auto fname = std::string(filename);
+        if (fname != "." && fname != "..")
         break;
     }
 

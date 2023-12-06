@@ -21,7 +21,7 @@ class CSSHFS{
 public:
 	CSSHFS(std::string _url,std::string _name,std::string _mount_name);
 	~CSSHFS();
-	std::string_view name, mount_name;
+	std::string name, mount_name;
 	
 	
 	int unregister_fs() const {
@@ -61,8 +61,8 @@ public:
 private:
 	std::string connect_url;
 	
-	int connect(std::string_view host, std::uint16_t port,
-        std::string_view username, std::string_view password);
+	int connect(std::string host, std::uint16_t port,
+        std::string username, std::string password);
 	void disconnect();
 	
 	bool is_connected = false;
