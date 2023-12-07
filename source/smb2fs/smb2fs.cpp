@@ -36,31 +36,36 @@ CSMB2FS::CSMB2FS(std::string _url,std::string _name,std::string _mount_name){
         .lstat_r      = CSMB2FS::smb2fs_lstat,
     };
 	
-	connect();
-	register_fs();
+	if(connect() == 0){
+		
+		register_fs();
+	}
 }
 
 CSMB2FS::~CSMB2FS(){
+	
+	auto lk = std::scoped_lock(this->session_mutex);
 	if (this->is_connected)
         this->disconnect();
-	
-	smb2_destroy_url(smb2url);
-	smb2_disconnect_share(smb2);
-	smb2_destroy_context(smb2);
 	
 	unregister_fs();
 }
 
 void CSMB2FS::disconnect(){
-	
+	if(smb2url!=nullptr)
+		smb2_destroy_url(smb2url);
+	if(smb2!=nullptr){
+		smb2_disconnect_share(smb2);
+		smb2_destroy_context(smb2);
+	}
 }
 
 
-bool CSMB2FS::connect(){
+int CSMB2FS::connect(){
 	smb2 = smb2_init_context();
 	if (smb2 == NULL) {
 		printf("SMB2 Failed to init context\n");
-		return false;
+		return -1;
 	
 	}
 	
@@ -80,18 +85,16 @@ bool CSMB2FS::connect(){
 	}
 	smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
 	
-	printf("SMBURL: %s %s %s\n",smb2url->share,smb2url->path,connect_url.c_str());
-	
 	
 	if (smb2_connect_share(smb2, smb2url->server, smb2url->share, NULL) < 0) {
 		printf("smb2_connect_share failed. %s\n", smb2_get_error(smb2));
-		return false;
+		return -1;
 	}
 	
 	
 	is_connected = true;
 	
-	return true;
+	return 0;
 }
 
 
@@ -100,7 +103,6 @@ int       CSMB2FS::smb2fs_open     (struct _reent *r, void *fileStruct, const ch
     auto *priv_file = static_cast<CSMB2FSFile *>(fileStruct);
 
 	if(std::string(path).empty()){
-		printf("Path empty\n");
 		return -1;
 	}
 
@@ -200,8 +202,9 @@ int       CSMB2FS::smb2fs_stat     (struct _reent *r, const char *file, struct s
 	struct smb2_stat_64 smb2st;
 	auto lk = std::scoped_lock(priv->session_mutex);
 	printf("STAT: %s\n",file+1);
-	if (smb2_stat(priv->smb2, file+1, &smb2st) < 0) {
-		return -1;
+	int rc = smb2_stat(priv->smb2, file+1, &smb2st);
+	if(rc < 0) {
+		return rc;
 	}
 	
 	priv->stat_entry(&smb2st,st);
@@ -251,49 +254,28 @@ int       CSMB2FS::smb2fs_dirnext  (struct _reent *r, DIR_ITER *dirState, char *
 	
 	
 	struct smb2dirent *ent;
-	while ((ent = smb2_readdir(priv->smb2, priv_dir->dir))) {
-		printf("DIRNEXT\n");
-		if (ent == NULL) {
-			 __errno_r(r) = ENOENT;
-			break;
-		}
-		
-		auto fname = std::string(ent->name);
-        if (fname != "." && fname != ".."){
-			memset(filename, 0, NAME_MAX);
-			memcpy(filename, ent->name,NAME_MAX);
-			priv->stat_entry(&ent->st,filestat);
-			return 0;
-			
-		}
-	
-	}
-	
-	
-	
-	/*
-	
 	while (true) {
-		struct smb2dirent *ent = nullptr;
-		ent = smb2_readdir(priv->smb2, priv_dir->dir);
 		
+		ent = smb2_readdir(priv->smb2, priv_dir->dir);
 		if (ent == NULL) {
-			 __errno_r(r) = ENOENT;
+			__errno_r(r) = ENOENT;
 			return -1;
 		}
-		
 		auto fname = std::string(ent->name);
-        if (fname != "." && fname != ".."){
-			memset(filename, 0, NAME_MAX);
-			memcpy(filename, ent->name,NAME_MAX);
-			priv->stat_entry(&ent->st,filestat);
-			break;
-		}
+        
+		
+		memset(filename, 0, NAME_MAX);
+		memcpy(filename, ent->name,NAME_MAX);
+		
+		if (fname != "." && fname != "..")
+		break;
+			
 	}
-	*/
 	
-	printf("NULL ENT\n");
-	return -1;
+	priv->stat_entry(&ent->st,filestat);
+	
+	
+	return 0;
 }
 
 int       CSMB2FS::smb2fs_dirclose (struct _reent *r, DIR_ITER *dirState){

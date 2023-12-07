@@ -22,7 +22,7 @@ class CSMB2FS{
 public:
 	CSMB2FS(std::string _url,std::string _name,std::string _mount_name);
 	~CSMB2FS();
-	std::string_view name, mount_name;
+	std::string name, mount_name;
 	
 	
 	int unregister_fs() const {
@@ -57,16 +57,18 @@ public:
 	static int       smb2fs_statvfs  (struct _reent *r, const char *path, struct statvfs *buf);
 	static int       smb2fs_lstat    (struct _reent *r, const char *file, struct stat *st);
 	
+	bool is_connected = false;
+	
 private:
 	std::string connect_url;
 	
-	bool connect();
+	int connect();
 	void disconnect();
 	
-	bool is_connected = false;
 	
-	struct smb2_context * smb2;
-	struct smb2_url *smb2url;
+	
+	struct smb2_context * smb2 = nullptr;
+	struct smb2_url *smb2url = nullptr;
 	
 	
 	
