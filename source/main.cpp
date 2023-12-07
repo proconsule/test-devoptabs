@@ -15,9 +15,11 @@
 
 #include "smb2fs.h"
 #include "sshfs.h"
+#include "nfsfs.h"
 
-std::string connectstringh = "ssh://user:pass@192.168.1.10/home/user/";
-
+std::string sshconnectstringh = "ssh://user:pass@192.168.1.10/home/user/";
+std::string smbconnectstringh = "smb://user:pass@192.168.1.10/share/";
+std::string nfsconnectstringh = "nfs://192.168.1.10/export/";
 
 CSSHFS * testssh;  
 
@@ -41,7 +43,7 @@ int main(int argc, char **argv){
 
 
 	
-	testssh = new CSSHFS(connectstringh,"ssh0","ssh0");
+	testssh = new CSSHFS(sshconnectstringh,"ssh0","ssh0");
 	
 		DIR * dir4 = opendir("ssh0:/");
 		struct dirent *ent4;

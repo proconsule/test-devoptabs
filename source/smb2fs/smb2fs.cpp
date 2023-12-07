@@ -33,16 +33,18 @@ CSMB2FS::CSMB2FS(std::string _url,std::string _name,std::string _mount_name){
 
         .deviceData   = this,
 
-        .lstat_r      = CSMB2FS::smb2fs_stat,
+        .lstat_r      = CSMB2FS::smb2fs_lstat,
     };
 	
 	connect();
+	register_fs();
 }
 
 CSMB2FS::~CSMB2FS(){
 	if (this->is_connected)
         this->disconnect();
 	
+	smb2_destroy_url(smb2url);
 	smb2_disconnect_share(smb2);
 	smb2_destroy_context(smb2);
 	
@@ -62,31 +64,31 @@ bool CSMB2FS::connect(){
 	
 	}
 	
-	struct smb2_url *myurl = smb2_parse_url(smb2,connect_url.c_str());
+	smb2url = smb2_parse_url(smb2,connect_url.c_str());
 	
-	printf("user: %s\n",myurl->user);
-	printf("pass: %s\n",myurl->pass);
+	printf("user: %s\n",smb2url->user);
+	printf("pass: %s\n",smb2url->pass);
 	fflush(stdout);
-	if(myurl->user != NULL){
-		smb2_set_user(smb2,myurl->user); 
+	if(smb2url->user != NULL){
+		smb2_set_user(smb2,smb2url->user); 
 	}else{
 		smb2_set_user(smb2,"Guest"); 
 	}
 	//token = strtok(NULL, search);
-	if(myurl->pass != NULL){
-		smb2_set_password(smb2,myurl->pass); 
+	if(smb2url->pass != NULL){
+		smb2_set_password(smb2,smb2url->pass); 
 	}
 	smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
 	
-	printf("SMBURL: %s %s %s\n",myurl->share,myurl->path,connect_url.c_str());
+	printf("SMBURL: %s %s %s\n",smb2url->share,smb2url->path,connect_url.c_str());
 	
 	
-	if (smb2_connect_share(smb2, myurl->server, myurl->share, NULL) < 0) {
+	if (smb2_connect_share(smb2, smb2url->server, smb2url->share, NULL) < 0) {
 		printf("smb2_connect_share failed. %s\n", smb2_get_error(smb2));
 		return false;
 	}
 	
-	smb2_destroy_url(myurl);
+	
 	is_connected = true;
 	
 	return true;
@@ -229,6 +231,9 @@ DIR_ITER * CSMB2FS::smb2fs_diropen  (struct _reent *r, DIR_ITER *dirState, const
 	auto lk = std::scoped_lock(priv->session_mutex);
 	
 	priv_dir->dir = smb2_opendir(priv->smb2, path+1);
+	if(!priv_dir->dir){
+		return nullptr;
+	}
 	
 	return dirState;
 }
@@ -244,14 +249,51 @@ int       CSMB2FS::smb2fs_dirnext  (struct _reent *r, DIR_ITER *dirState, char *
 
     auto lk = std::scoped_lock(priv->session_mutex);
 	
-	struct smb2dirent *ent = smb2_readdir(priv->smb2, priv_dir->dir);
-	if(!ent)return -1;
-	memset(filestat, 0, sizeof(*filestat));
-	memset(filename, 0, NAME_MAX);
-	priv->stat_entry(&ent->st,filestat);
-	strcpy(filename, ent->name);
 	
-	return 0;
+	struct smb2dirent *ent;
+	while ((ent = smb2_readdir(priv->smb2, priv_dir->dir))) {
+		printf("DIRNEXT\n");
+		if (ent == NULL) {
+			 __errno_r(r) = ENOENT;
+			break;
+		}
+		
+		auto fname = std::string(ent->name);
+        if (fname != "." && fname != ".."){
+			memset(filename, 0, NAME_MAX);
+			memcpy(filename, ent->name,NAME_MAX);
+			priv->stat_entry(&ent->st,filestat);
+			return 0;
+			
+		}
+	
+	}
+	
+	
+	
+	/*
+	
+	while (true) {
+		struct smb2dirent *ent = nullptr;
+		ent = smb2_readdir(priv->smb2, priv_dir->dir);
+		
+		if (ent == NULL) {
+			 __errno_r(r) = ENOENT;
+			return -1;
+		}
+		
+		auto fname = std::string(ent->name);
+        if (fname != "." && fname != ".."){
+			memset(filename, 0, NAME_MAX);
+			memcpy(filename, ent->name,NAME_MAX);
+			priv->stat_entry(&ent->st,filestat);
+			break;
+		}
+	}
+	*/
+	
+	printf("NULL ENT\n");
+	return -1;
 }
 
 int       CSMB2FS::smb2fs_dirclose (struct _reent *r, DIR_ITER *dirState){
@@ -292,7 +334,7 @@ int       CSMB2FS::smb2fs_statvfs  (struct _reent *r, const char *path, struct s
 	return 0;
 }
 
-/*
+
 int       CSMB2FS::smb2fs_lstat    (struct _reent *r, const char *file, struct stat *st){
 	auto *priv     = static_cast<CSMB2FS    *>(r->deviceData);
 	char* colonPos = strchr(file, ':');
@@ -308,10 +350,12 @@ int       CSMB2FS::smb2fs_lstat    (struct _reent *r, const char *file, struct s
 	
 	return 0;
 }
-*/
+
 
 void CSMB2FS::stat_entry(smb2_stat_64  *entry, struct stat *st)
 {
+	*st = {};
+	
 	st->st_mode =  entry->smb2_type == 0 ? S_IFDIR : S_IFREG;
 	st->st_nlink = 1;
 	st->st_uid = 1;

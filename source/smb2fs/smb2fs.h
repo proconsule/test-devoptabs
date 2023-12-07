@@ -43,17 +43,6 @@ public:
 		return 0;
 	}
 	
-	
-private:
-	std::string connect_url;
-	
-	bool connect();
-	void disconnect();
-	
-	bool is_connected = false;
-	
-	struct smb2_context * smb2;
-	
 	static int       smb2fs_open     (struct _reent *r, void *fileStruct, const char *path, int flags, int mode);
 	static int       smb2fs_close    (struct _reent *r, void *fd);
 	static ssize_t   smb2fs_read     (struct _reent *r, void *fd, char *ptr, size_t len);
@@ -68,21 +57,29 @@ private:
 	static int       smb2fs_statvfs  (struct _reent *r, const char *path, struct statvfs *buf);
 	static int       smb2fs_lstat    (struct _reent *r, const char *file, struct stat *st);
 	
+private:
+	std::string connect_url;
+	
+	bool connect();
+	void disconnect();
+	
+	bool is_connected = false;
+	
+	struct smb2_context * smb2;
+	struct smb2_url *smb2url;
+	
+	
+	
 	void stat_entry(smb2_stat_64  *entry, struct stat *st);
 	
 	struct CSMB2FSFile {
-            //LIBSSH2_SFTP_HANDLE *handle;
-            //LIBSSH2_SFTP_ATTRIBUTES attrs;
-			smb2_stat_64  smb2st;
 			struct smb2fh *fh;
-			struct smb2_context 	   *smb2;
+			smb2_stat_64  smb2st;
             off_t offset;
         };
 
         struct CSMB2FSDir {
-			struct smb2_context	*smb2;
 			struct smb2dir *dir;
-            //LIBSSH2_SFTP_HANDLE *handle;
         };
 	
 	
