@@ -159,10 +159,10 @@ CSSHFS::CSSHFS(std::string _url,std::string _name,std::string _mount_name){
     };
 	this->urlschema = this->parseSSHUrl(connect_url);
 	if(connect(urlschema.server,atoi(urlschema.port.c_str()),urlschema.user,urlschema.pass) == 0){
-		
+		this->cwd = "/" + urlschema.path;
+		register_fs();
 	}
-	this->cwd = "/" + urlschema.path;
-	register_fs();
+	
 }
 
 CSSHFS::~CSSHFS(){
@@ -203,7 +203,6 @@ int CSSHFS::connect(std::string host, std::uint16_t port,
 	
 	if(port == 0)port=22;
 	
-	printf("Host: %s User: %s Pass: %s port: %u\n",host.data(),username.data(),password.data(),port);
 	
 	
 	if (auto rc = libssh2_init(0); rc)
@@ -261,8 +260,7 @@ int CSSHFS::sshfs_open(struct _reent *r, void *fileStruct, const char *path, int
     auto *priv_file = static_cast<CSSHFSFile *>(fileStruct);
 
     auto internal_path = priv->translate_path(path);
-	printf("OPEN: %s\n",internal_path.data());
-    if (internal_path.empty()) {
+	if (internal_path.empty()) {
         __errno_r(r) = EINVAL;
         return -1;
     }
@@ -354,8 +352,7 @@ int CSSHFS::sshfs_fstat(struct _reent *r, void *fd, struct stat *st) {
 
 int CSSHFS::sshfs_stat(struct _reent *r, const char *file, struct stat *st) {
     auto *priv = static_cast<CSSHFS *>(r->deviceData);
-	printf("STAT: %s\n",file);
-    auto internal_path = priv->translate_path(file);
+	auto internal_path = priv->translate_path(file);
     if (internal_path.empty()) {
         __errno_r(r) = EINVAL;
         return -1;
@@ -378,8 +375,7 @@ int CSSHFS::sshfs_stat(struct _reent *r, const char *file, struct stat *st) {
 
 int CSSHFS::sshfs_lstat(struct _reent *r, const char *file, struct stat *st) {
     auto *priv = static_cast<CSSHFS *>(r->deviceData);
-	printf("STAT: %s\n",file);
-    auto internal_path = priv->translate_path(file);
+	auto internal_path = priv->translate_path(file);
     if (internal_path.empty()) {
         __errno_r(r) = EINVAL;
         return -1;
@@ -417,8 +413,7 @@ DIR_ITER *CSSHFS::sshfs_diropen(struct _reent *r, DIR_ITER *dirState, const char
 
     auto internal_path = priv->translate_path(path);
     
-	printf("DIROPEN %s\n",internal_path.c_str());
-
+	
     auto lk = std::scoped_lock(priv->session_mutex);
 
 	priv_dir->handle = libssh2_sftp_open_ex(priv->sftp_session, internal_path.data(), internal_path.length(),

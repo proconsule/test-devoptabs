@@ -59,6 +59,8 @@ public:
 	
 	bool is_connected = false;
 	
+	uint32_t maxreadsize = 1024*1024;
+	
 private:
 	std::string connect_url;
 	

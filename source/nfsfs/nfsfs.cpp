@@ -43,9 +43,11 @@ CNFSFS::CNFSFS(std::string _url,std::string _name,std::string _mount_name){
         .lstat_r      = CNFSFS::nfsfs_stat,
     };
 	
-	connect();
-	this->cwd = "/";
-	register_fs();
+	if(connect() == 0){
+		this->cwd = "/";
+	
+		register_fs();
+	}
 }
 
 CNFSFS::~CNFSFS(){
@@ -54,7 +56,7 @@ CNFSFS::~CNFSFS(){
 
     if (this->nfs)
         nfs_destroy_context(nfs);
-
+		nfs_destroy_url(nfsurl);
     
 	
 	unregister_fs();
@@ -83,7 +85,6 @@ int CNFSFS::connect(){
 	nfsurl = nfs_parse_url_full(nfs, connect_url.c_str());
 	
     
-	printf("NFS %s %s\n",nfsurl->server,nfsurl->path);
 	if (nfs_mount(nfs, nfsurl->server, nfsurl->path) != 0) {
  		printf("Failed to mount nfs share : %s\n", nfs_get_error(nfs));
 		if (nfs != NULL) {
@@ -103,8 +104,7 @@ int CNFSFS::nfsfs_open(struct _reent *r, void *fileStruct, const char *path, int
     auto *priv_file = static_cast<CNFSFSFile *>(fileStruct);
 
     auto internal_path = priv->translate_path(path);
-	printf("OPEN: %s\n",internal_path.data());
-    if (internal_path.empty()) {
+	if (internal_path.empty()) {
        __errno_r(r) = EINVAL;
         return -1;
     }
@@ -151,9 +151,9 @@ ssize_t CNFSFS::nfsfs_read(struct _reent *r, void *fd, char *ptr, size_t len) {
 
     auto lk = std::scoped_lock(priv->session_mutex);
 
-    auto rc = nfs_read(priv->nfs,priv_file->nfsfh, len, ptr);
+    auto rc = nfs_read(priv->nfs,priv_file->nfsfh, (uint64_t)len, ptr);
     if (rc < 0) {
-        return -1;
+        return rc;
     }
 
     priv_file->offset += rc;
@@ -190,14 +190,15 @@ off_t CNFSFS::nfsfs_seek(struct _reent *r, void *fd, off_t pos, int dir) {
 int CNFSFS::nfsfs_fstat(struct _reent *r, void *fd, struct stat *st) {
     auto *priv = static_cast<CNFSFS *>(r->deviceData);
 	auto *priv_file = static_cast<CNFSFSFile *>(fd);
-
+	
+	auto lk = std::scoped_lock(priv->session_mutex);
     priv->stat_entry(&priv_file->filestat, st);
     return 0;
 }
 
 int CNFSFS::nfsfs_stat(struct _reent *r, const char *file, struct stat *st) {
     auto *priv = static_cast<CNFSFS *>(r->deviceData);
-	printf("STAT: %s\n",file);
+	//printf("STAT: %s\n",file);
     auto internal_path = priv->translate_path(file);
     if (internal_path.empty()) {
         __errno_r(r) = EINVAL;
@@ -239,9 +240,7 @@ DIR_ITER *CNFSFS::nfsfs_diropen(struct _reent *r, DIR_ITER *dirState, const char
 
     auto internal_path = priv->translate_path(path);
     
-	printf("DIROPEN %s\n",internal_path.c_str());
-
-    auto lk = std::scoped_lock(priv->session_mutex);
+	auto lk = std::scoped_lock(priv->session_mutex);
 
 	int ret = nfs_opendir(priv->nfs, internal_path.data(), &priv_dir->nfsdir);
 
@@ -326,8 +325,17 @@ void CNFSFS::stat_entry(nfs_stat_64  *entry, struct stat *st)
 {
 	*st = {};
 	
-	st->st_mode =  entry->nfs_mode & S_IFMT == 0 ? S_IFDIR : S_IFREG;
-	st->st_nlink = 1;
+	switch (entry->nfs_mode & S_IFMT) {
+		case S_IFREG:
+			st->st_mode = S_IFREG;
+			break;
+		case S_IFDIR:
+			st->st_mode = S_IFDIR;
+			break;
+	}
+	
+	
+	st->st_nlink = entry->nfs_nlink;
 	st->st_uid = 1;
 	st->st_gid = 2;
 	st->st_size = entry->nfs_size;

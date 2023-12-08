@@ -61,14 +61,14 @@ public:
 	static int       nfsfs_statvfs  (struct _reent *r, const char *path, struct statvfs *buf);
 	static int       nfsfs_lstat    (struct _reent *r, const char *file, struct stat *st);
 	
-	
+	bool is_connected = false;
 private:
 	std::string connect_url;
 	
 	int connect();
 	void disconnect();
 	
-	bool is_connected = false;
+	
 	std::string translate_path(const char *path);
 
 	

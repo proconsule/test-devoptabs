@@ -91,6 +91,7 @@ int CSMB2FS::connect(){
 		return -1;
 	}
 	
+	maxreadsize = smb2_get_max_read_size(smb2);
 	
 	is_connected = true;
 	
@@ -201,7 +202,6 @@ int       CSMB2FS::smb2fs_stat     (struct _reent *r, const char *file, struct s
     if (colonPos) file = colonPos+1;
 	struct smb2_stat_64 smb2st;
 	auto lk = std::scoped_lock(priv->session_mutex);
-	printf("STAT: %s\n",file+1);
 	int rc = smb2_stat(priv->smb2, file+1, &smb2st);
 	if(rc < 0) {
 		return rc;
@@ -321,7 +321,6 @@ int       CSMB2FS::smb2fs_lstat    (struct _reent *r, const char *file, struct s
 	auto *priv     = static_cast<CSMB2FS    *>(r->deviceData);
 	char* colonPos = strchr(file, ':');
     if (colonPos) file = colonPos+1;
-	printf("LSTAT: %s\n",file+1);
 	struct smb2_stat_64 smb2st;
 	auto lk = std::scoped_lock(priv->session_mutex);
 	if (smb2_stat(priv->smb2, file+1, &smb2st) < 0) {
@@ -338,7 +337,7 @@ void CSMB2FS::stat_entry(smb2_stat_64  *entry, struct stat *st)
 {
 	*st = {};
 	
-	st->st_mode =  entry->smb2_type == 0 ? S_IFDIR : S_IFREG;
+	st->st_mode =  entry->smb2_type == 0 ? S_IFMT : S_IFDIR;
 	st->st_nlink = 1;
 	st->st_uid = 1;
 	st->st_gid = 2;

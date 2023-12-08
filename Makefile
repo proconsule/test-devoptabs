@@ -39,9 +39,9 @@ include $(DEVKITPRO)/libnx/switch_rules
 #---------------------------------------------------------------------------------
 TARGET		:=	$(notdir $(CURDIR))
 BUILD		:=	build
-SOURCES		:=	source source/nfsfs source/sshfs source/smb2fs source/dvd-parser
+SOURCES		:=	source source/libarchivefs source/nfsfs source/sshfs source/smb2fs source/dvd-parser
 DATA		:=	data
-INCLUDES	:=	include source/nfsfs source/sshfs source/smb2fs source/dvd-parser
+INCLUDES	:=	include source/libarchivefs source/nfsfs source/sshfs source/smb2fs source/dvd-parser
 ROMFS	:=	romfs
 
 #---------------------------------------------------------------------------------
@@ -59,7 +59,7 @@ CXXFLAGS	:= $(CFLAGS)  -std=c++17 -fno-exceptions
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=$(DEVKITPRO)/libnx/switch.specs -g $(ARCH)  -Wl,-Map,$(notdir $*.map)
 
-LIBS	:=  -lssh2 -lnfs -lmbedcrypto -lsmb2   -lz -lnx
+LIBS	:=  -lssh2 -lnfs -lmbedcrypto -lsmb2 -larchive  -lexpat -llzma -lzstd -llz4 -lbz2 -lz -lnx
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
