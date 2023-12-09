@@ -45,6 +45,8 @@ int main(int argc, char **argv){
 	
 	testssh = new CSSHFS(sshconnectstringh,"ssh0","ssh0");
 	
+	/* This is the standard way for listing dir */
+	
 		DIR * dir4 = opendir("ssh0:/");
 		struct dirent *ent4;
 		while ((ent4 = readdir(dir4)) != nullptr) {
@@ -57,7 +59,30 @@ int main(int argc, char **argv){
 		}
 		closedir(dir4);
 		
-		
+	/* This code speedup the directory listing a lot since no need for stat on each file */
+	/* This code was made by averne https://github.com/averne */
+		auto *dir = opendir("ssh0:/");    
+		if (dir) {
+			struct stat st;
+			
+			auto *reent    = __syscall_getreent();
+			auto *devoptab = devoptab_list[dir->dirData->device];
+
+			
+			while (true) {
+				reent->deviceData = devoptab->deviceData;
+				if (devoptab->dirnext_r(reent, dir->dirData, dir->fileData.d_name, &st))
+					break;
+
+				auto path = dir->fileData.d_name;
+				printf("%s %d\n",dir->fileData.d_name,st.st_size);	
+				
+				
+			}
+			closedir(dir);
+		}
+
+	
 		FILE * testfile = fopen("ssh0:/test.txt","rb");
 		if(testfile){
 			char buffer[64];
